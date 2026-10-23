@@ -1,9 +1,5 @@
-"""
-Learning Agent - Tracks factor performance and adjusts weights
-"""
 import sqlite3
 from typing import Dict
-from loguru import logger
 
 class LearningAgent:
     def __init__(self, config: dict, db_path: str = "data/trades.db"):
@@ -21,9 +17,16 @@ class LearningAgent:
                     weight_adjust REAL DEFAULT 0.0
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS symbol_performance (
+                    symbol TEXT PRIMARY KEY,
+                    recent_pnl REAL DEFAULT 0.0,
+                    trades INTEGER DEFAULT 0
+                )
+            """)
             conn.commit()
 
-    def record_trade(self, scores: Dict, won: bool):
+    def record_trade(self, scores: Dict, won: bool, symbol: str = None, pnl: float = 0.0):
         with sqlite3.connect(self.db_path) as conn:
             for factor, score in scores.items():
                 if abs(score) < 0.05:
@@ -38,17 +41,51 @@ class LearningAgent:
                         losses += 1
                     total = wins + losses
                     adjust = (wins / total - 0.5) * 0.2 if total >= self.min_trades else 0.0
-                    conn.execute("UPDATE factor_performance SET wins=?, losses=?, weight_adjust=? WHERE factor=?", (wins, losses, adjust, factor))
+                    conn.execute(
+                        "UPDATE factor_performance SET wins=?, losses=?, weight_adjust=? WHERE factor=?",
+                        (wins, losses, adjust, factor)
+                    )
                 else:
                     wins = 1 if won else 0
                     losses = 0 if won else 1
-                    conn.execute("INSERT INTO factor_performance (factor, wins, losses, weight_adjust) VALUES (?, ?, ?, 0.0)", (factor, wins, losses))
+                    conn.execute(
+                        "INSERT INTO factor_performance (factor, wins, losses, weight_adjust) VALUES (?, ?, ?, 0.0)",
+                        (factor, wins, losses)
+                    )
+
+            if symbol:
+                cur = conn.execute("SELECT recent_pnl, trades FROM symbol_performance WHERE symbol = ?", (symbol,))
+                row = cur.fetchone()
+                if row:
+                    recent, trades = row
+                    recent = (recent * 0.7) + (pnl * 0.3)
+                    trades += 1
+                    conn.execute(
+                        "UPDATE symbol_performance SET recent_pnl=?, trades=? WHERE symbol=?",
+                        (recent, trades, symbol)
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO symbol_performance (symbol, recent_pnl, trades) VALUES (?, ?, 1)",
+                        (symbol, pnl)
+                    )
             conn.commit()
 
-    def get_adjustments(self) -> Dict[str, float]:
+    def get_adjustments(self, symbol: str = None) -> Dict[str, float]:
         with sqlite3.connect(self.db_path) as conn:
-            cur = conn.execute("SELECT factor, weight_adjust FROM factor_performance WHERE (wins + losses) >= ?", (self.min_trades,))
-            return {row[0]: row[1] for row in cur.fetchall()}
+            cur = conn.execute(
+                "SELECT factor, weight_adjust FROM factor_performance WHERE (wins + losses) >= ?",
+                (self.min_trades,)
+            )
+            adj = {row[0]: row[1] for row in cur.fetchall()}
 
-    def get_pattern_win_rate(self, factor_combo: str) -> float:
-        return 0.5
+            if symbol:
+                cur = conn.execute("SELECT recent_pnl FROM symbol_performance WHERE symbol = ?", (symbol,))
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    if row[0] < -20:
+                        adj["symbol"] = -0.12
+                    elif row[0] > 10:
+                        adj["symbol"] = 0.08
+            return adj
+

@@ -39,6 +39,12 @@ class PaperEngine:
             pnl = (price - pos.entry_price) * pos.size
         else:
             pnl = (pos.entry_price - price) * pos.size
+
+        # Fee deduction (0.04% round-trip estimate)
+        notional = pos.size * pos.entry_price
+        fee = notional * 0.0004
+        pnl -= fee
+
         self.state.cash += pos.size * price
         self.state.equity += pnl
         return pnl
@@ -52,3 +58,4 @@ class PaperEngine:
                 fav = pos.entry_price - price
             if fav > pos.highest_favorable:
                 pos.highest_favorable = fav
+

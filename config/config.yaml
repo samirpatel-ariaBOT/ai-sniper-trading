@@ -16,13 +16,13 @@ scanner:
   rescan_interval_minutes: 15
 
 exit:
-  quick_profit_pct: 0.005
-  trailing_activation_pct: 0.003
-  trailing_distance_pct: 0.002
-  time_stop_minutes: 10
+  quick_profit_pct: 0.004
+  trailing_activation_pct: 0.002
+  trailing_distance_pct: 0.0015
+  time_stop_minutes: 5
 
 decision:
-  min_confidence: 0.62
+  min_confidence: 0.70
   require_volume_confirm: true
 
 orderbook:
@@ -44,4 +44,5 @@ database:
 
 oracle:
   timeframe: "5m"
-  confidence_threshold: 0.62
+  confidence_threshold: 0.70
+

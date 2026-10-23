@@ -4,3 +4,4 @@ python-telegram-bot>=21.0
 python-dotenv>=1.0.0
 loguru>=0.7.0
 streamlit
+requests>=2.31.0
