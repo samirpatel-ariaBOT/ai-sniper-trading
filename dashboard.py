@@ -12,27 +12,34 @@ st.caption("Control Room - MEXC Futures")
 @st.cache_resource
 def get_ex():
     return ccxt.mexc({"enableRateLimit": True, "options": {"defaultType": "swap"}})
+
 ex = get_ex()
 
+# Load trades
 try:
     conn = sqlite3.connect("data/trades.db")
     trades = pd.read_sql("SELECT * FROM trades ORDER BY id DESC", conn)
     conn.close()
     total = len(trades)
-    pnl = trades["pnl"].sum() if total else 0
-    wins = len(trades[trades["pnl"] > 0]) if total else 0
+    pnl = trades["net_pnl"].sum() if total else 0
+    wins = len(trades[trades["net_pnl"] > 0]) if total else 0
     wr = (wins / total * 100) if total else 0
-except:
-    total = pnl = wr = 0
+    fees_paid = trades["fees"].sum() if total else 0
+except Exception as e:
+    st.error(str(e))
+    total = pnl = wr = fees_paid = 0
     trades = pd.DataFrame()
 
+# Metrics
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Equity", f"${10000 + pnl:,.2f}")
-c2.metric("PnL", f"${pnl:,.2f}")
+c2.metric("Net PnL", f"${pnl:,.2f}")
 c3.metric("Trades", total)
 c4.metric("Win Rate", f"{wr:.1f}%")
 
 st.divider()
+
+# Agents
 st.subheader("Agents")
 a1, a2, a3, a4, a5 = st.columns(5)
 a1.metric("Scout", "Active")
@@ -42,6 +49,8 @@ a4.metric("Decision", "Active")
 a5.metric("OrderBook", "Active")
 
 st.divider()
+
+# Top Movers
 st.subheader("Top Movers")
 try:
     tickers = ex.fetch_tickers()
@@ -59,13 +68,15 @@ try:
             st.write("Losers")
             st.dataframe(df.tail(5).iloc[::-1], use_container_width=True, hide_index=True)
 except Exception as e:
-    st.warning(str(e)[:60])
+    st.warning(str(e)[:80])
 
 st.divider()
+
+# Equity Curve
 st.subheader("Equity Curve")
-if total > 0 and "pnl" in trades.columns:
+if total > 0 and "net_pnl" in trades.columns:
     eq = trades.sort_values("id").copy()
-    eq["equity"] = 10000 + eq["pnl"].cumsum()
+    eq["equity"] = 10000 + eq["net_pnl"].cumsum()
     st.line_chart(eq.set_index("id")["equity"])
     current = eq["equity"].iloc[-1]
     color = "green" if current >= 10000 else "red"
@@ -73,21 +84,22 @@ if total > 0 and "pnl" in trades.columns:
 else:
     st.info("No trades yet for equity curve")
 
-if total > 0 and "size" in trades.columns and "entry_price" in trades.columns:
-    fee_rate = 0.0004
-    notional = (trades["size"] * trades["entry_price"]).sum()
-    est_fees = notional * fee_rate
-    st.metric("Est. Fees Paid", f"${est_fees:,.2f}")
-    st.metric("Net Capital", f"${10000 + pnl - est_fees:,.2f}")
+# Fees
+if total > 0:
+    st.metric("Fees Paid", f"${fees_paid:,.2f}")
+    st.metric("Net Capital", f"${10000 + pnl:,.2f}")
 
 st.divider()
+
+# Trade History
 st.subheader("Trade History")
 if total > 0:
-    st.dataframe(trades[["symbol","direction","entry_price","exit_price","pnl"]].head(15), use_container_width=True, hide_index=True)
+    cols = [c for c in ["symbol","direction","entry_price","exit_price","net_pnl","fees"] if c in trades.columns]
+    st.dataframe(trades[cols].head(20), use_container_width=True, hide_index=True)
 else:
     st.info("No closed trades yet")
 
 st.caption(datetime.utcnow().strftime("%H:%M:%S UTC"))
+
 time.sleep(8)
 st.rerun()
-
