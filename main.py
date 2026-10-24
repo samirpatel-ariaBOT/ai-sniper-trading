@@ -10,6 +10,7 @@ from agents.exit_manager import ExitManager
 from agents.decision_agent import DecisionAgent
 from agents.orderbook_agent import OrderBookAgent
 from agents.learning_agent import LearningAgent
+from agents.stop_monitor import StopMonitor
 from core.paper_engine import PaperEngine
 from core.database import TradeDatabase
 from core.data_feed import DataFeed
@@ -65,6 +66,9 @@ async def main():
     scanner = TopMoversScanner(min_volume_usdt=500000, top_n=5)
     telegram = TelegramReporter()
 
+    stop_monitor = StopMonitor(paper, hard_stop_pct=0.008, check_interval=1.0)
+    stop_monitor.start()
+
     logger.info(f"Started | Equity: ${paper.state.equity:.2f}")
     telegram.send(f"AI Sniper started | Equity: ${paper.state.equity:.2f}")
 
@@ -77,6 +81,7 @@ async def main():
             now = time.time()
             has_pos = len(paper.state.positions) > 0
             telegram.check_commands(config["database"]["path"])
+
             if has_pos:
                 for pid, pos in list(paper.state.positions.items()):
                     price = data.fetch_ticker(pos.symbol)
@@ -87,7 +92,10 @@ async def main():
                     if sig.should_exit:
                         pnl = paper.close_position(pid, price)
                         if pnl is not None:
-                            db.log_trade(pos.symbol, pos.direction, pos.entry_price, price, pos.size, pnl)
+                            db.log_trade(
+                                pos.symbol, pos.direction, pos.entry_price, price,
+                                pos.size, pnl, entry_time=pos.entry_time, reason="exit"
+                            )
                             learning.record_trade(last_scores.get(pos.symbol, {}), pnl > 0, pos.symbol, pnl)
                             risk.record_trade_result(paper.state.equity, pnl)
                             logger.info(f"EXIT {pos.symbol} {pos.direction} pnl={pnl:.2f} equity={paper.state.equity:.2f}")
