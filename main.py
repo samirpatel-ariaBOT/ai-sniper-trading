@@ -13,6 +13,7 @@ from agents.sentiment_agent import SentimentAgent
 from agents.orderbook_agent import OrderBookAgent
 from agents.learning_agent import LearningAgent
 from agents.stop_monitor import StopMonitor
+from agents.telegram_agent import TelegramAgent
 from core.paper_engine import PaperEngine, Position
 from core.database import TradeDatabase
 from core.data_feed import DataFeed
@@ -45,6 +46,10 @@ async def main():
     sentiment = SentimentAgent(config)
     orderbook = OrderBookAgent(config)
     learning = LearningAgent(config, config.get("learning", {}).get("db_path", "data/learning.db"))
+    tg = TelegramAgent(
+        token=config.get("telegram", {}).get("token", ""),
+        chat_id=config.get("telegram", {}).get("chat_id", "")
+    )
     paper = PaperEngine(config["paper"]["initial_equity"], config["paper"].get("fee_rate", 0.0004))
     db = TradeDatabase(config["database"]["path"])
     data = DataFeed()
@@ -85,6 +90,7 @@ async def main():
                             db.log_trade(result)
                             learning.record_trade({}, result["net_pnl"] > 0)
                             logger.info(f"EXIT {pos.symbol} {result['reason']} PnL={result['net_pnl']:.2f}")
+                            tg.send(f"EXIT {pos.symbol} {result['reason']} PnL=${result['net_pnl']:.2f}")
                 db.save_open_positions(paper.get_positions_snapshot())
 
             # Write open positions snapshot for dashboard
@@ -134,6 +140,7 @@ async def main():
                 if pid:
                     await stop_monitor.check_now(sym)
                     logger.info(f"ENTRY {sym} size={size:.4f} price={price}")
+                    tg.send(f"ENTRY {sym} {signal['side'].upper()} size={size:.2f} @ {price}")
                     break
 
             await asyncio.sleep(15 if has_pos else 25)

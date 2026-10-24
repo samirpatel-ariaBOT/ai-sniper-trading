@@ -41,3 +41,8 @@ learning:
 
 database:
   path: "data/trades.db"
+
+telegram:
+  enabled: true
+  token: "8838588478:AAHixs1qXPPT0wb5y-GswXxBcO96oSbjJKI"
+  chat_id: "851603753"
