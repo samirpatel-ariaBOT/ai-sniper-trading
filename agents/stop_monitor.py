@@ -6,11 +6,12 @@ import ccxt
 from loguru import logger
 
 class StopMonitor:
-    def __init__(self, paper_engine, hard_stop_pct: float = 0.008, check_interval: float = 10.0, max_quote_age: float = 15.0):
+    def __init__(self, paper_engine, hard_stop_pct: float = 0.008, check_interval: float = 10.0, max_quote_age: float = 15.0, db=None):
         self.paper = paper_engine
         self.hard_stop_pct = hard_stop_pct
         self.check_interval = check_interval
         self.max_quote_age = max_quote_age
+        self.db = db
         self.exchange = ccxt.mexc({
             "enableRateLimit": True,
             "options": {"defaultType": "swap"}
@@ -46,7 +47,7 @@ class StopMonitor:
             return
         now = time.time()
         for pid, pos in list(self.paper.state.positions.items()):
-            if not pos or (symbol_filter and pos.symbol != symbol_filter):
+            if symbol_filter and pos.symbol != symbol_filter:
                 continue
             try:
                 await asyncio.sleep(0.6)
@@ -65,6 +66,9 @@ class StopMonitor:
                 hit = (pos.direction == "long" and price <= stop_price) or (pos.direction == "short" and price >= stop_price)
                 if hit:
                     logger.warning(f"HARD STOP HIT {pos.symbol} {pos.direction} entry={pos.entry_price:.6f} stop={stop_price:.6f} now={price:.6f}")
-                    self.paper.close_position(pid, price, reason="hard_stop")
+                    result = self.paper.close_position(pid, price, reason="hard_stop")
+                    if result and self.db:
+                        self.db.log_trade(result)
+                        logger.info(f"STOP SAVED {pos.symbol} PnL={result['net_pnl']:.2f}")
             except Exception as e:
                 logger.error(f"Stop check failed for {pos.symbol}: {e}")

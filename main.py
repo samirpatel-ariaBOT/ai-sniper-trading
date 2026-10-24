@@ -1,6 +1,7 @@
 import asyncio
 import time
 import yaml
+import json
 from datetime import datetime
 from loguru import logger
 from agents.risk_agent import RiskAgent
@@ -12,7 +13,7 @@ from agents.sentiment_agent import SentimentAgent
 from agents.orderbook_agent import OrderBookAgent
 from agents.learning_agent import LearningAgent
 from agents.stop_monitor import StopMonitor
-from core.paper_engine import PaperEngine
+from core.paper_engine import PaperEngine, Position
 from core.database import TradeDatabase
 from core.data_feed import DataFeed
 from core.scanner import TopMoversScanner
@@ -24,7 +25,6 @@ def load_config(path="config/config.yaml"):
 async def restore_positions(paper, db):
     saved = db.load_open_positions()
     for p in saved:
-        from core.paper_engine import Position
         paper.state.positions[p["id"]] = Position(
             id=p["id"], symbol=p["symbol"], direction=p["direction"],
             size=p["size"], entry_price=p["entry_price"],
@@ -56,11 +56,13 @@ async def main():
         paper,
         hard_stop_pct=config.get("stop_monitor", {}).get("hard_stop_pct", 0.008),
         check_interval=config.get("stop_monitor", {}).get("check_interval", 10.0),
-        max_quote_age=config.get("stop_monitor", {}).get("max_quote_age", 15.0)
+        max_quote_age=config.get("stop_monitor", {}).get("max_quote_age", 15.0),
+        db=db
     )
     stop_monitor.start()
     await restore_positions(paper, db)
     logger.info(f"Started | Equity: ${paper.state.equity:.2f}")
+
     last_scan = 0
     scan_interval = config.get("scanner", {}).get("rescan_interval_minutes", 15) * 60
     active_symbols = []
@@ -84,10 +86,20 @@ async def main():
                             learning.record_trade({}, result["net_pnl"] > 0)
                             logger.info(f"EXIT {pos.symbol} {result['reason']} PnL={result['net_pnl']:.2f}")
                 db.save_open_positions(paper.get_positions_snapshot())
+
+            # Write open positions snapshot for dashboard
+            try:
+                snapshot = paper.get_positions_snapshot()
+                with open("data/open_positions.json", "w") as f:
+                    json.dump(snapshot, f)
+            except Exception:
+                pass
+
             if (now - last_scan) >= scan_interval:
                 last_scan = now
                 active_symbols = scanner.get_trading_symbols()
                 logger.info(f"Scan: {active_symbols}")
+
             for sym in active_symbols:
                 if any(p.symbol == sym for p in paper.state.positions.values()):
                     continue
@@ -123,6 +135,7 @@ async def main():
                     await stop_monitor.check_now(sym)
                     logger.info(f"ENTRY {sym} size={size:.4f} price={price}")
                     break
+
             await asyncio.sleep(15 if has_pos else 25)
         except Exception as e:
             logger.error(f"Loop error: {e}")

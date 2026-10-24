@@ -3,6 +3,8 @@ import ccxt
 import pandas as pd
 import sqlite3
 import time
+import json
+import os
 from datetime import datetime
 
 st.set_page_config(page_title="AI Sniper Trading", layout="wide")
@@ -15,7 +17,7 @@ def get_ex():
 
 ex = get_ex()
 
-# Load trades
+# Load closed trades
 try:
     conn = sqlite3.connect("data/trades.db")
     trades = pd.read_sql("SELECT * FROM trades ORDER BY id DESC", conn)
@@ -39,6 +41,26 @@ c4.metric("Win Rate", f"{wr:.1f}%")
 
 st.divider()
 
+# Live Open Positions
+st.subheader("Open Positions")
+open_file = "data/open_positions.json"
+if os.path.exists(open_file):
+    try:
+        with open(open_file) as f:
+            open_pos = json.load(f)
+        if open_pos:
+            op_df = pd.DataFrame(open_pos)
+            cols = [c for c in ["symbol", "direction", "size", "entry_price", "stop_price", "highest_favorable"] if c in op_df.columns]
+            st.dataframe(op_df[cols], use_container_width=True, hide_index=True)
+        else:
+            st.info("No open positions")
+    except Exception as e:
+        st.warning(f"Could not read open positions: {e}")
+else:
+    st.info("No open positions file yet")
+
+st.divider()
+
 # Agents
 st.subheader("Agents")
 a1, a2, a3, a4, a5 = st.columns(5)
@@ -46,7 +68,7 @@ a1.metric("Scout", "Active")
 a2.metric("Oracle", "Active")
 a3.metric("Risk", "Active")
 a4.metric("Decision", "Active")
-a5.metric("OrderBook", "Active")
+a5.metric("StopMonitor", "Active")
 
 st.divider()
 
@@ -74,10 +96,10 @@ st.divider()
 
 # Equity Curve
 st.subheader("Equity Curve")
-if total > 0 and "net_pnl" in trades.columns:
-    eq = trades.sort_values("id").copy()
+if total > 0 and "net_pnl" in trades.columns and "exit_time" in trades.columns:
+    eq = trades.sort_values("exit_time").copy()
     eq["equity"] = 10000 + eq["net_pnl"].cumsum()
-    st.line_chart(eq.set_index("id")["equity"])
+    st.line_chart(eq.set_index("exit_time")["equity"])
     current = eq["equity"].iloc[-1]
     color = "green" if current >= 10000 else "red"
     st.markdown(f"**Current Equity:** <span style='color:{color}'>${current:,.2f}</span>", unsafe_allow_html=True)
@@ -94,7 +116,7 @@ st.divider()
 # Trade History
 st.subheader("Trade History")
 if total > 0:
-    cols = [c for c in ["symbol","direction","entry_price","exit_price","net_pnl","fees"] if c in trades.columns]
+    cols = [c for c in ["symbol", "direction", "entry_price", "exit_price", "net_pnl", "fees"] if c in trades.columns]
     st.dataframe(trades[cols].head(20), use_container_width=True, hide_index=True)
 else:
     st.info("No closed trades yet")

@@ -61,11 +61,13 @@ class PaperEngine:
         fee_exit = notional_exit * (self.fee_rate / 2)
         if pos.direction == "long":
             gross_pnl = (exit_price - pos.entry_price) * pos.size
+            cash_change = notional_exit - fee_exit
         else:
             gross_pnl = (pos.entry_price - exit_price) * pos.size
+            cash_change = notional_exit - fee_exit
         net_pnl = gross_pnl - pos.fees_paid - fee_exit
         self.state.equity += net_pnl
-        self.state.cash += notional_exit - fee_exit
+        self.state.cash += cash_change
         self.state.daily_pnl += net_pnl
         self.state.total_trades += 1
         self.state.total_fees += fee_exit
