@@ -1,49 +1,43 @@
 paper:
   initial_equity: 10000.0
-  currency: USDT
+  fee_rate: 0.0004
 
 risk:
-  risk_per_trade: 0.035
+  risk_per_trade: 0.055
   daily_loss_limit: 0.12
   max_concurrent_risk: 0.15
   min_equity_floor: 5000.0
-  max_notional_pct: 0.10
+  max_notional_pct: 0.18
 
 scanner:
   enabled: true
   min_volume_usdt: 500000
-  min_change_pct: 3.0
   top_n: 5
   rescan_interval_minutes: 15
 
 exit:
-  quick_profit_pct: 0.004
-  trailing_activation_pct: 0.002
-  trailing_distance_pct: 0.0015
-  time_stop_minutes: 5
+  quick_profit_pct: 0.005
+  time_stop_minutes: 10
 
 decision:
-  min_confidence: 0.70
-  require_volume_confirm: true
+  min_confidence: 0.62
 
-orderbook:
-  enabled: true
-  depth_levels: 20
+oracle:
+  timeframe: "5m"
+  confidence_threshold: 0.62
+
+stop_monitor:
+  hard_stop_pct: 0.008
+  check_interval: 10.0
+  max_quote_age: 15.0
+
+quote:
+  max_entry_age: 3.0
 
 learning:
   enabled: true
   min_trades: 10
-
-news:
-  enabled: false
-
-sentiment:
-  enabled: false
+  db_path: "data/learning.db"
 
 database:
   path: "data/trades.db"
-
-oracle:
-  timeframe: "5m"
-  confidence_threshold: 0.70
-
