@@ -123,7 +123,7 @@ async def main():
                     await stop_monitor.check_now(sym)
                     logger.info(f"ENTRY {sym} size={size:.4f} price={price}")
                     break
-            await asyncio.sleep(10 if has_pos else 18)
+            await asyncio.sleep(15 if has_pos else 25)
         except Exception as e:
             logger.error(f"Loop error: {e}")
             await asyncio.sleep(5)
