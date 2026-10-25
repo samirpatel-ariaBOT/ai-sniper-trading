@@ -32,7 +32,7 @@ stop_monitor:
   max_quote_age: 15.0
 
 quote:
-  max_entry_age: 3.0
+  max_entry_age: 6.0
 
 learning:
   enabled: true
@@ -46,3 +46,10 @@ telegram:
   enabled: true
   token: "8838588478:AAHixs1qXPPT0wb5y-GswXxBcO96oSbjJKI"
   chat_id: "851603753"
+
+risk:
+  cooldown_seconds: 300
+  max_notional_pct: 0.18
+
+fees:
+  taker_rate: 0.0008   # 0.08% per side (MEXC API futures)

@@ -5,7 +5,7 @@ import sqlite3
 import time
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 st.set_page_config(page_title="AI Sniper Trading", layout="wide")
 st.title("AI SNIPER TRADING")
@@ -51,7 +51,7 @@ if os.path.exists(open_file):
         if open_pos:
             op_df = pd.DataFrame(open_pos)
             cols = [c for c in ["symbol", "direction", "size", "entry_price", "stop_price", "highest_favorable"] if c in op_df.columns]
-            st.dataframe(op_df[cols], use_container_width=True, hide_index=True)
+            st.dataframe(op_df[cols], width='stretch', hide_index=True)
         else:
             st.info("No open positions")
     except Exception as e:
@@ -85,10 +85,10 @@ try:
         col1, col2 = st.columns(2)
         with col1:
             st.write("Gainers")
-            st.dataframe(df.head(5), use_container_width=True, hide_index=True)
+            st.dataframe(df.head(5), width='stretch', hide_index=True)
         with col2:
             st.write("Losers")
-            st.dataframe(df.tail(5).iloc[::-1], use_container_width=True, hide_index=True)
+            st.dataframe(df.tail(5).iloc[::-1], width='stretch', hide_index=True)
 except Exception as e:
     st.warning(str(e)[:80])
 
@@ -117,11 +117,11 @@ st.divider()
 st.subheader("Trade History")
 if total > 0:
     cols = [c for c in ["symbol", "direction", "entry_price", "exit_price", "net_pnl", "fees"] if c in trades.columns]
-    st.dataframe(trades[cols].head(20), use_container_width=True, hide_index=True)
+    st.dataframe(trades[cols].head(20), width='stretch', hide_index=True)
 else:
     st.info("No closed trades yet")
 
-st.caption(datetime.utcnow().strftime("%H:%M:%S UTC"))
+st.caption(datetime.now(timezone.utc).strftime("%H:%M:%S UTC"))
 
 time.sleep(8)
 st.rerun()

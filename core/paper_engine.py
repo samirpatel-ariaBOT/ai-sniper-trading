@@ -28,7 +28,7 @@ class PaperState:
     total_fees: float = 0.0
 
 class PaperEngine:
-    def __init__(self, initial_equity: float = 10000.0, fee_rate: float = 0.0004):
+    def __init__(self, initial_equity: float = 10000.0, fee_rate: float = 0.0008):
         self.state = PaperState(equity=initial_equity, cash=initial_equity)
         self.fee_rate = fee_rate
 

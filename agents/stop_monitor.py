@@ -6,12 +6,13 @@ import ccxt
 from loguru import logger
 
 class StopMonitor:
-    def __init__(self, paper_engine, hard_stop_pct: float = 0.008, check_interval: float = 10.0, max_quote_age: float = 15.0, db=None):
+    def __init__(self, paper_engine, hard_stop_pct: float = 0.008, check_interval: float = 10.0, max_quote_age: float = 15.0, db=None, risk=None):
         self.paper = paper_engine
         self.hard_stop_pct = hard_stop_pct
         self.check_interval = check_interval
         self.max_quote_age = max_quote_age
         self.db = db
+        self.risk = risk
         self.exchange = ccxt.mexc({
             "enableRateLimit": True,
             "options": {"defaultType": "swap"}
@@ -69,6 +70,8 @@ class StopMonitor:
                     result = self.paper.close_position(pid, price, reason="hard_stop")
                     if result and self.db:
                         self.db.log_trade(result)
+                        if hasattr(self, "risk"):
+                            self.risk.record_exit(pos.symbol, result.get("net_pnl", 0))
                         logger.info(f"STOP SAVED {pos.symbol} PnL={result['net_pnl']:.2f}")
             except Exception as e:
                 logger.error(f"Stop check failed for {pos.symbol}: {e}")
