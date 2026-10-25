@@ -59,10 +59,11 @@ async def main():
     )
     stop_monitor = StopMonitor(
         paper,
-        hard_stop_pct=config.get("stop_monitor", {}).get("hard_stop_pct", 0.008),
-        check_interval=config.get("stop_monitor", {}).get("check_interval", 10.0),
-        max_quote_age=config.get("stop_monitor", {}).get("max_quote_age", 15.0),
-        db=db
+        hard_stop_pct=0.013,
+        check_interval=2.0,
+        max_quote_age=6.0,
+        db=db,
+        risk=risk
     )
     stop_monitor.start()
     await restore_positions(paper, db)
@@ -71,7 +72,7 @@ async def main():
     last_scan = 0
     scan_interval = config.get("scanner", {}).get("rescan_interval_minutes", 15) * 60
     active_symbols = []
-    max_entry_age = config.get("quote", {}).get("max_entry_age", 3.0)
+    max_entry_age = config.get("quote", {}).get("max_entry_age", 6.0)
 
     while True:
         try:
@@ -87,10 +88,12 @@ async def main():
                     if exit_sig.should_exit:
                         result = paper.close_position(pid, price, reason=exit_sig.reason)
                         if result:
+                            pnl = result.get("net_pnl", 0)
+                            risk.record_exit(pos.symbol, pnl)
                             db.log_trade(result)
-                            learning.record_trade({}, result["net_pnl"] > 0)
-                            logger.info(f"EXIT {pos.symbol} {result['reason']} PnL={result['net_pnl']:.2f}")
-                            tg.send(f"EXIT {pos.symbol} {result['reason']} PnL=${result['net_pnl']:.2f}")
+                            learning.record_trade({}, pnl > 0)
+                            logger.info(f"EXIT {pos.symbol} {result['reason']} PnL={pnl:.2f}")
+                            tg.send(f"EXIT {pos.symbol} {result['reason']} PnL=${pnl:.2f}")
                 db.save_open_positions(paper.get_positions_snapshot())
 
             # Write open positions snapshot for dashboard
@@ -114,6 +117,7 @@ async def main():
                     continue
                 quote_age = (time.time() * 1000 - ticker.get("timestamp", 0)) / 1000
                 if quote_age > max_entry_age:
+                    logger.info(f"SKIP {sym} quote_age={quote_age:.1f}s")
                     continue
                 price = ticker.get("last") or ticker.get("bid") or 0
                 if price <= 0:
@@ -122,25 +126,34 @@ async def main():
                 if not candles:
                     continue
                 score, label = oracle.score(candles)
-                signal = {
-                    "side": "long" if score > 0.65 else "short" if score < 0.35 else None,
-                    "confidence": score,
-                    "atr": price * 0.008
-                }
-                if not signal.get("side"):
+                # Signed direction from Oracle
+                side = None
+                if score > 0.25:
+                    side = "long"
+                elif score < -0.25:
+                    side = "short"
+                if not side:
+                    logger.info(f"SKIP {sym} neutral score={score:.3f} label={label}")
                     continue
-                stop_dist = signal.get("atr", price * 0.008) * 1.2
-                risk_ok, msg = risk.check(paper.state.equity, paper.state.daily_pnl, len(paper.state.positions))
+                stop_dist = price * 0.013 * 1.2
+                risk_ok, msg = risk.check(
+                    paper.state.equity,
+                    paper.state.daily_pnl,
+                    len(paper.state.positions),
+                    symbol=sym
+                )
                 if not risk_ok:
+                    logger.info(f"SKIP {sym} risk={msg}")
                     continue
                 size = risk.position_size(paper.state.equity, price, stop_dist)
                 if size <= 0:
+                    logger.info(f"SKIP {sym} size={size:.2f}")
                     continue
-                pid = paper.open_position(sym, signal["side"], size, price, stop_dist, quote_age=quote_age)
+                pid = paper.open_position(sym, side, size, price, stop_dist, quote_age=quote_age)
                 if pid:
                     await stop_monitor.check_now(sym)
                     logger.info(f"ENTRY {sym} size={size:.4f} price={price}")
-                    tg.send(f"ENTRY {sym} {signal['side'].upper()} size={size:.2f} @ {price}")
+                    tg.send(f"ENTRY {sym} {side.upper()} size={size:.2f} @ {price}")
                     break
 
             await asyncio.sleep(15 if has_pos else 25)

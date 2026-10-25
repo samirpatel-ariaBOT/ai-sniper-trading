@@ -16,7 +16,7 @@ scanner:
   rescan_interval_minutes: 15
 
 exit:
-  quick_profit_pct: 0.005
+  quick_profit_pct: 0.012
   time_stop_minutes: 10
 
 decision:
@@ -27,7 +27,7 @@ oracle:
   confidence_threshold: 0.62
 
 stop_monitor:
-  hard_stop_pct: 0.008
+  hard_stop_pct: 0.014
   check_interval: 10.0
   max_quote_age: 15.0
 

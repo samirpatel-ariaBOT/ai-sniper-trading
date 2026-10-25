@@ -16,9 +16,9 @@ class ExitSignal:
 
 class ExitManager:
     def __init__(self, config: dict):
-        self.quick_profit = config.get("exit", {}).get("quick_profit_pct", 0.005)
+        self.quick_profit = 0.012
         self.time_stop_minutes = config.get("exit", {}).get("time_stop_minutes", 10)
-        self.hard_stop_pct = 0.008  # 0.8% hard stop
+        self.hard_stop_pct = 0.013  # 0.8% hard stop
 
     def check_exit(self, entry_price, current_price, direction, entry_time, highest_favorable):
         now = datetime.utcnow()

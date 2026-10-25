@@ -59,7 +59,7 @@ async def main():
     )
     stop_monitor = StopMonitor(
         paper,
-        hard_stop_pct=0.008,
+        hard_stop_pct=0.013,
         check_interval=2.0,
         max_quote_age=6.0,
         db=db,
@@ -91,7 +91,8 @@ async def main():
                             pnl = result.get("net_pnl", 0)
                             risk.record_exit(pos.symbol, pnl)
                             db.log_trade(result)
-                            learning.record_trade({}, pnl > 0)
+                            entry_scores = getattr(paper, "_entry_scores", {}).pop(pid, {})
+                            learning.record_trade(entry_scores, pnl > 0)
                             logger.info(f"EXIT {pos.symbol} {result['reason']} PnL={pnl:.2f}")
                             tg.send(f"EXIT {pos.symbol} {result['reason']} PnL=${pnl:.2f}")
                 db.save_open_positions(paper.get_positions_snapshot())
@@ -126,16 +127,26 @@ async def main():
                 if not candles:
                     continue
                 score, label = oracle.score(candles)
-                # Signed direction from Oracle
+                # Learning adjustments
+                learn_adj = {}
+                try:
+                    learn_adj = learning.get_adjustments()
+                except:
+                    pass
+                oracle_adj = learn_adj.get('oracle', 0.0)
+                # Raise threshold if past oracle performance is weak
+                base_thresh = 0.25
+                thresh = base_thresh + max(0, -oracle_adj) * 0.5
                 side = None
-                if score > 0.25:
-                    side = "long"
-                elif score < -0.25:
-                    side = "short"
+                if score > thresh:
+                    side = 'long'
+                elif score < -thresh:
+                    side = 'short'
+                # Signed direction from Oracle
                 if not side:
                     logger.info(f"SKIP {sym} neutral score={score:.3f} label={label}")
                     continue
-                stop_dist = price * 0.008 * 1.2
+                stop_dist = price * 0.013 * 1.2
                 risk_ok, msg = risk.check(
                     paper.state.equity,
                     paper.state.daily_pnl,
@@ -150,6 +161,14 @@ async def main():
                     logger.info(f"SKIP {sym} size={size:.2f}")
                     continue
                 pid = paper.open_position(sym, side, size, price, stop_dist, quote_age=quote_age)
+                if pid:
+                    if not hasattr(paper, '_entry_scores'):
+                        paper._entry_scores = {}
+                    paper._entry_scores[pid] = {
+                        'oracle': score,
+                        'oracle_abs': abs(score),
+                        'side_long': 1.0 if side == 'long' else 0.0,
+                    }
                 if pid:
                     await stop_monitor.check_now(sym)
                     logger.info(f"ENTRY {sym} size={size:.4f} price={price}")
