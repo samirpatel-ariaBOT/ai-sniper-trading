@@ -41,7 +41,8 @@ class LearningAgent:
                     else:
                         losses += 1
                     total = wins + losses
-                    adjust = (wins / total - 0.5) * 0.2 if total >= self.min_trades else 0.0
+                    # Softer adjustment: only move after clear under/over performance
+                    adjust = (wins / total - 0.5) * 0.15 if total >= self.min_trades else 0.0
                     conn.execute(
                         "UPDATE factor_performance SET wins=?, losses=?, weight_adjust=? WHERE factor=?",
                         (wins, losses, adjust, factor)
@@ -56,10 +57,15 @@ class LearningAgent:
             conn.commit()
 
     def get_adjustments(self) -> Dict[str, float]:
-        return {}
+        """Return weight_adjust for every factor that has enough trades."""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.execute(
+                "SELECT factor, weight_adjust FROM factor_performance WHERE (wins + losses) >= ?",
+                (self.min_trades,)
+            )
+            return {row[0]: row[1] for row in cur.fetchall()}
 
     def get_stats(self) -> Dict:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.execute("SELECT factor, wins, losses, weight_adjust FROM factor_performance")
             return {row[0]: {"wins": row[1], "losses": row[2], "adjust": row[3]} for row in cur.fetchall()}
-

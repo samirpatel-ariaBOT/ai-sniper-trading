@@ -1,9 +1,6 @@
 """
 Exit Manager - Fast entry / fast exit logic
 """
-"""
-Exit Manager - Fast entry / fast exit logic
-"""
 from dataclasses import dataclass
 from typing import Optional
 from datetime import datetime
@@ -16,9 +13,10 @@ class ExitSignal:
 
 class ExitManager:
     def __init__(self, config: dict):
-        self.quick_profit = 0.012
-        self.time_stop_minutes = config.get("exit", {}).get("time_stop_minutes", 10)
-        self.hard_stop_pct = 0.013  # 0.8% hard stop
+        exit_cfg = config.get("exit", {})
+        self.quick_profit = exit_cfg.get("quick_profit_pct", 0.018)
+        self.time_stop_minutes = exit_cfg.get("time_stop_minutes", 15)
+        self.hard_stop_pct = exit_cfg.get("hard_stop_pct", 0.013)
 
     def check_exit(self, entry_price, current_price, direction, entry_time, highest_favorable):
         now = datetime.utcnow()
@@ -34,7 +32,7 @@ class ExitManager:
         else:
             adverse = (current_price - entry_price) / entry_price
 
-        # Hard stop at -0.8%
+        # Hard stop
         if adverse >= self.hard_stop_pct:
             return ExitSignal(True, f"Hard stop -{adverse*100:.2f}%", current_price)
 

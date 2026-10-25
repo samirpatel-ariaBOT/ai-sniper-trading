@@ -1,13 +1,14 @@
 paper:
   initial_equity: 10000.0
-  fee_rate: 0.0004
+  fee_rate: 0.0008
 
 risk:
   risk_per_trade: 0.055
   daily_loss_limit: 0.12
   max_concurrent_risk: 0.15
   min_equity_floor: 5000.0
-  max_notional_pct: 0.18
+  max_notional_pct: 0.28
+  cooldown_seconds: 300
 
 scanner:
   enabled: true
@@ -16,8 +17,9 @@ scanner:
   rescan_interval_minutes: 15
 
 exit:
-  quick_profit_pct: 0.012
-  time_stop_minutes: 10
+  quick_profit_pct: 0.018
+  time_stop_minutes: 15
+  hard_stop_pct: 0.013
 
 decision:
   min_confidence: 0.62
@@ -47,9 +49,5 @@ telegram:
   token: "8838588478:AAHixs1qXPPT0wb5y-GswXxBcO96oSbjJKI"
   chat_id: "851603753"
 
-risk:
-  cooldown_seconds: 300
-  max_notional_pct: 0.18
-
 fees:
-  taker_rate: 0.0008   # 0.08% per side (MEXC API futures)
+  taker_rate: 0.0008

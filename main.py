@@ -136,7 +136,7 @@ async def main():
                 oracle_adj = learn_adj.get('oracle', 0.0)
                 # Raise threshold if past oracle performance is weak
                 base_thresh = 0.25
-                thresh = base_thresh + max(0, -oracle_adj) * 0.5
+                thresh = base_thresh + max(0, -oracle_adj - 0.03) * 0.4
                 side = None
                 if score > thresh:
                     side = 'long'
